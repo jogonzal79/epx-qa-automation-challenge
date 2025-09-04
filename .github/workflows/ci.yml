@@ -25,10 +25,20 @@ jobs:
 
       - name: Run tests
         run: npx playwright test
-      # Publica el reporte como artefacto
+        env:
+          # Variables de entorno para CI más robusto
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/ms-playwright
+          
       - name: Upload HTML report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-report
+          
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results
