@@ -29,11 +29,11 @@ export class LoginPage {
   async submitLogin() {
     await this.submitBtn.click();
 
-    // No asumimos /home: esperamos a que la app post-login esté lista
+    // No asumimos /home: esperamos a que la app post-login este lista
     await this.page.waitForLoadState('domcontentloaded');
     await this.page.waitForLoadState('networkidle').catch(() => {});
 
-    // Ancla visual post-login (navbar Home u otro elemento estable)
-    await this.page.getByRole('link', { name: /home/i }).first().waitFor({ timeout: 15000 }).catch(() => {});
+    // Simple: esperar que salgamos de la pagina de login
+    await this.page.waitForURL(url => !url.toString().includes('/log-in'), { timeout: 15000 });
   }
 }
