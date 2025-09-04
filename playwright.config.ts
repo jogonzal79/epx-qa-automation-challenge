@@ -32,15 +32,10 @@ export default defineConfig({
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-extensions'
+            '--disable-dev-shm-usage'
           ]
         }
       } 
-    },
-    // Solo Chromium en CI para estabilidad
-    ...(process.env.CI ? [] : [
-      { name: 'Firefox', use: { ...devices['Desktop Firefox'] } }
-    ])
+    }
   ],
 });
