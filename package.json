@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "playwright test",
-    "report": "playwright show-report"
+    "test:carl": "playwright test test/carl-flujo.spec.ts --project=Chromium",
+    "report": "playwright show-report",
+    "debug:carl": "PWDEBUG=1 playwright test test/carl-flujo.spec.ts --project=Chromium --headed"
   },
   "keywords": [],
   "author": "",

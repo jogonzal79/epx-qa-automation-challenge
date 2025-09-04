@@ -1,5 +1,7 @@
 node_modules/
 test-results/
 playwright-report/
+allure-results/
+allure-report/
 *.log
 .env
