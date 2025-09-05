@@ -7,7 +7,9 @@
     "test": "playwright test",
     "test:carl": "playwright test test/carl-flujo.spec.ts --project=Chromium",
     "report": "playwright show-report",
-    "debug:carl": "PWDEBUG=1 playwright test test/carl-flujo.spec.ts --project=Chromium --headed"
+    "debug:carl": "PWDEBUG=1 playwright test test/carl-flujo.spec.ts --project=Chromium --headed",
+    "test:posting": "playwright test test/posting-limits.spec.ts --project=Chromium",
+    "test:posting:debug": "PWDEBUG=1 playwright test test/posting-limits.spec.ts --project=Chromium --headed"
   },
   "keywords": [],
   "author": "",
@@ -19,5 +21,8 @@
     "dotenv": "^17.2.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
   }
 }
