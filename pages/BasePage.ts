@@ -9,35 +9,46 @@ export abstract class BasePage {
     this.page = page;
   }
 
-  // Navegacion base con esperas robustas
-  async goto(path: string = '') {
+  /**
+   * Núcleo de navegación "final".
+   * No debe ser sobreescrito. Los helpers internos lo usarán para evitar recursión.
+   */
+  protected async _open(path: string = '') {
     const fullURL = path.startsWith('http') ? path : `${this.baseURL}${path}`;
-    
-    await this.page.goto(fullURL, { 
+
+    await this.page.goto(fullURL, {
       waitUntil: 'domcontentloaded',
-      timeout: 30000 
+      timeout: 30000,
     });
-    
+
     await this.page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
-    await this.page.waitForTimeout(1000); // Estabilizacion
+    await this.page.waitForTimeout(1000); // Estabilización
   }
 
-  // Esperas comunes reutilizables
+  /**
+   * API pública de navegación. Subclases pueden sobreescribirla si lo necesitan.
+   * Por defecto delega en _open.
+   */
+  async goto(path: string = '') {
+    await this._open(path);
+  }
+
+  // -------------------- Esperas comunes --------------------
   async waitForElement(locator: Locator, options?: { timeout?: number }) {
-    await locator.waitFor({ 
-      state: 'visible', 
-      timeout: options?.timeout || 15000 
+    await locator.waitFor({
+      state: 'visible',
+      timeout: options?.timeout ?? 15000,
     });
   }
 
   async waitForElementToBeHidden(locator: Locator, options?: { timeout?: number }) {
-    await locator.waitFor({ 
-      state: 'hidden', 
-      timeout: options?.timeout || 15000 
+    await locator.waitFor({
+      state: 'hidden',
+      timeout: options?.timeout ?? 15000,
     });
   }
 
-  // Metodos de interaccion seguros
+  // -------------------- Interacciones seguras --------------------
   async safeClick(locator: Locator) {
     await this.waitForElement(locator);
     await locator.click();
@@ -45,7 +56,7 @@ export abstract class BasePage {
 
   async safeFill(locator: Locator, text: string) {
     await this.waitForElement(locator);
-    await locator.clear();
+    await locator.clear().catch(() => {});
     await locator.fill(text);
   }
 
@@ -54,7 +65,7 @@ export abstract class BasePage {
     await locator.selectOption(option);
   }
 
-  // Validaciones comunes
+  // -------------------- Validaciones comunes --------------------
   async validatePageLoaded(identifier: Locator | string) {
     if (typeof identifier === 'string') {
       await expect(this.page).toHaveURL(new RegExp(identifier));
@@ -70,7 +81,7 @@ export abstract class BasePage {
       '.alert-error',
       '[class*="error"]',
       '.notification-error',
-      'text=/error/i'
+      'text=/error/i',
     ];
 
     for (const selector of errorSelectors) {
@@ -82,12 +93,12 @@ export abstract class BasePage {
     }
   }
 
-  // Utilidades de debugging
+  // -------------------- Utilidades de debugging --------------------
   async takeDebugScreenshot(name: string) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    await this.page.screenshot({ 
+    await this.page.screenshot({
       path: `test-results/debug-${name}-${timestamp}.png`,
-      fullPage: true 
+      fullPage: true,
     });
   }
 
@@ -100,15 +111,17 @@ export abstract class BasePage {
     console.log(`Page title: ${title}`);
   }
 
-  // Manejo de loading states
+  // -------------------- Loading states --------------------
   async waitForLoadingToComplete() {
     const loadingSelectors = [
       '[data-testid*="loading"]',
       '[class*="loading"]',
       '[class*="spinner"]',
       '.loader',
+      '[aria-busy="true"]',
+      '[role="progressbar"]',
       'text=/loading/i',
-      'text=/cargando/i'
+      'text=/cargando/i',
     ];
 
     for (const selector of loadingSelectors) {
@@ -119,61 +132,41 @@ export abstract class BasePage {
     }
   }
 
-  // Manejo de modales
-  async closeModalIfVisible() {
-    const modalCloseSelectors = [
-      '[data-testid*="close"]',
-      '.modal-close',
-      'button:has-text("Close")',
-      'button:has-text("×")',
-      '.close',
-      '[aria-label*="close"]'
-    ];
-
-    for (const selector of modalCloseSelectors) {
-      const closeButton = this.page.locator(selector);
-      if (await closeButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await closeButton.click();
-        break;
-      }
-    }
-  }
-
-  // Navegacion comun de EPX
+  // -------------------- Navegación común EPX --------------------
+  // IMPORTANTE: usar _open(...) para evitar polimorfismo si una subclase sobreescribe goto()
   async goToLogin() {
-    await this.goto('/log-in');
+    await this._open('/log-in');
     await this.validatePageLoaded('/log-in');
   }
 
   async goToDashboard() {
-    await this.goto('/');
+    await this._open('/');
     await this.waitForLoadingToComplete();
   }
 
   async goToCarl() {
-    await this.goto('/carl');
+    await this._open('/carl');
     await this.validatePageLoaded('/carl');
   }
 
   async goToAdviceForm() {
-    await this.goto('/achieve/seek-advice');
+    await this._open('/achieve/seek-advice');
     await this.waitForLoadingToComplete();
   }
 
   async goToOnlineEvents() {
-    await this.goto('/online');
+    await this._open('/online');
     await this.waitForLoadingToComplete();
   }
 
-  // Validacion de autenticacion (opcional)
+  // -------------------- Autenticación --------------------
   async validateAuthenticated(required: boolean = true) {
-    // Esperar a que aparezcan elementos del usuario autenticado
     const authIndicators = [
-      'nav',
+      'a[href="/carl"]',
       '[data-testid*="user"]',
       '[data-testid*="profile"]',
       'header',
-      '[role="navigation"]'
+      '[role="navigation"]',
     ];
 
     let isAuthenticated = false;
@@ -192,12 +185,14 @@ export abstract class BasePage {
     return isAuthenticated;
   }
 
-  // Limpieza y reset
+  // -------------------- Limpieza / reset --------------------
   async clearAllInputs() {
-    const inputs = await this.page.locator('input[type="text"], input[type="email"], textarea').all();
+    const inputs = await this.page
+      .locator('input[type="text"], input[type="email"], textarea')
+      .all();
     for (const input of inputs) {
       if (await input.isVisible().catch(() => false)) {
-        await input.clear();
+        await input.clear().catch(() => {});
       }
     }
   }

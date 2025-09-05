@@ -5,3 +5,4 @@ allure-results/
 allure-report/
 *.log
 .env
+storageState.json
