@@ -6,3 +6,6 @@ allure-report/
 *.log
 .env
 storageState.json
+*-actual.png
+*-diff.png
+debug-*.png

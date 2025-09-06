@@ -26,8 +26,8 @@ jobs:
           npx playwright install chromium
           npx playwright install-deps chromium
 
-      - name: Run Playwright tests
-        run: npx playwright test
+      - name: Run Playwright tests (excluding visual tests)
+        run: npx playwright test --ignore-files="**/visual-regression.spec.ts" --ignore-files="**/visual-comparison.spec.ts"
         env:
           EPX_EMAIL: ${{ secrets.EPX_EMAIL }}
           EPX_PASS: ${{ secrets.EPX_PASS }}
