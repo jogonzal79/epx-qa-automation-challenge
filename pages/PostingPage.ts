@@ -34,10 +34,14 @@ export class PostingPage {
   }
 
   async goto(): Promise<void> {
-    await this.page.goto('https://app-stg.epxworldwide.com/', {
-      waitUntil: 'networkidle',
-      timeout: 30000
-    });
+    // NO refrescar si ya estamos en la página principal
+    const currentUrl = this.page.url();
+    if (!currentUrl.includes('app-stg.epxworldwide.com')) {
+      await this.page.goto('https://app-stg.epxworldwide.com/', {
+        waitUntil: 'networkidle',
+        timeout: 30000
+      });
+    }
     await this.waitForPageToLoad();
   }
 
@@ -57,20 +61,10 @@ export class PostingPage {
     try {
       console.log('🔍 Preparando para hacer clic en Get Advice...');
       
-      // PASO 1: Cerrar todos los modales de onboarding
-      await this.modalHandler.closeAllOnboardingModals();
+      // NO cerrar modales aquí - ya deberían estar cerrados desde el test
+      // El test maneja los modales después del registro
       
-      // Verificar si quedan modales
-      if (await this.modalHandler.hasVisibleModals()) {
-        console.log('⚠️ Aún hay modales visibles, intentando cerrarlos nuevamente...');
-        await this.modalHandler.closeAllOnboardingModals();
-      }
-      
-      // PASO 2: Buscar y hacer clic en Get Advice
       console.log('🎯 Buscando botón Get Advice...');
-      
-      // Esperar un poco más para asegurar que los modales se cerraron
-      await this.page.waitForTimeout(2000);
       
       // Verificar si el botón está visible
       const isVisible = await this.getAdviceButton.isVisible({ timeout: 5000 });

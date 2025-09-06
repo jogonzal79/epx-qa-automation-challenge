@@ -12,10 +12,23 @@ export class ModalHandler {
     console.log('🔍 Verificando y cerrando modales de onboarding...');
     
     try {
+      // IMPORTANTE: Esperar a que los modales aparezcan antes de cerrarlos
+      console.log('⏳ Esperando a que aparezcan los modales...');
+      await this.page.waitForTimeout(3000); // Dar tiempo para que aparezcan
+      
       // Estrategia 1: Cerrar modales por IDs dinámicos de headlessui
       await this.closeHeadlessUIModals();
       
-      // Estrategia 2: Manejar el tutorial (Next → Close)
+      // Esperar entre modales
+      await this.page.waitForTimeout(1000);
+      
+      // Estrategia 2: Manejar el modal "AI for Networking" con "Let's go"
+      await this.handleAINetworkingModal();
+      
+      // Esperar entre modales
+      await this.page.waitForTimeout(1000);
+      
+      // Estrategia 3: Manejar el tutorial (Next → Close)
       await this.handleTutorialModal();
       
       console.log('✅ Todos los modales cerrados exitosamente');
@@ -67,13 +80,26 @@ export class ModalHandler {
   private async handleAINetworkingModal(): Promise<void> {
     try {
       // Buscar el modal de "AI for Networking" con el botón "Let's go"
-      const letsGoButton = this.page.getByRole('button', { name: "Let's go" });
+      const letsGoButton = this.page.locator('button:has-text("Let\'s go")').first();
       
-      if (await letsGoButton.isVisible({ timeout: 3000 })) {
+      if (await letsGoButton.isVisible({ timeout: 5000 })) {
         console.log('📍 Detectado modal "AI for Networking"');
         await letsGoButton.click();
         console.log('✅ Clic en "Let\'s go"');
-        await this.page.waitForTimeout(1000);
+        await this.page.waitForTimeout(2000); // Esperar más tiempo para que se cierre
+        
+        // Verificar si se cerró correctamente
+        const modalStillVisible = await this.page.locator('text="AI for Networking"').isVisible({ timeout: 1000 })
+          .catch(() => false);
+        
+        if (modalStillVisible) {
+          console.log('⚠️ Modal aún visible, intentando cerrar con X');
+          // Intentar cerrar con X si sigue visible
+          const closeButton = this.page.locator('[role="dialog"] button:has(svg)').first();
+          if (await closeButton.isVisible({ timeout: 1000 })) {
+            await closeButton.click();
+          }
+        }
       }
     } catch (error) {
       console.log('ℹ️ Modal "AI for Networking" no encontrado');

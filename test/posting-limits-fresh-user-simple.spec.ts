@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import { UserCreationHelper, type UserData } from '../helpers/UserCreationHelper.js';
 import { PostingPage } from '../pages/PostingPage.js';
 import { CarlPage } from '../pages/CarlPage.js';
+import { ModalHandler } from '../helpers/ModalHandler.js'; // ✅ Nuevo import agregado
 
 // NO usar storageState - necesitamos empezar sin autenticación
 test.use({ 
@@ -59,12 +60,20 @@ test.describe('Posting Limits - Usuario Fresco (Verificación Manual)', () => {
     await test.step('📝 Probar 1er Get Advice - debe ser GRATIS', async () => {
       console.log('\n🎯 PROBANDO PRIMER GET ADVICE (GRATIS)');
       
-      // ===== CAMBIO CLAVE: Navegamos a la página principal para empezar limpio =====
-      await page.goto('https://app-stg.epxworldwide.com/');
-      await page.waitForLoadState('networkidle');
-      // =======================================================================
+      console.log('📍 Ya estamos en la página principal después del registro');
+      console.log('⏳ Esperando a que aparezcan los modales de onboarding...');
       
+      // Esperar a que aparezcan los modales (son parte del flujo natural post-registro)
+      await page.waitForTimeout(3000);
+      
+      // Crear instancia de ModalHandler para cerrar modales
+      const modalHandler = new ModalHandler(page);
+      await modalHandler.closeAllOnboardingModals();
+      
+      // Ahora crear la instancia de PostingPage
       const postingPage = new PostingPage(page);
+      
+      // Intentar hacer clic en Get Advice
       const result = await postingPage.clickGetAdvice();
       
       console.log(`📊 Resultado del primer Get Advice: ${result.type}`);
@@ -75,26 +84,16 @@ test.describe('Posting Limits - Usuario Fresco (Verificación Manual)', () => {
         
         console.log('📝 Completando formulario para consumir límite gratuito...');
         
-        await expect(postingPage.accountingFinanceRadio).toBeVisible({ timeout: 10000 });
-        await postingPage.accountingFinanceRadio.click();
-        
-        await expect(postingPage.descriptionEditor).toBeVisible({ timeout: 10000 });
-        await postingPage.descriptionEditor.fill(
+        // Usar el método mejorado que maneja todo el flujo
+        const submitted = await postingPage.fillAndSubmitAdviceForm(
           `Prueba de límites de posting con usuario fresco creado el ${new Date().toISOString()}. ` +
           `Este es el primer Get Advice gratuito para validar que el sistema respeta los límites por usuario.`
         );
         
-        await postingPage.submitButton.click();
-        
-        const success = await Promise.race([
-          postingPage.wayToGoHeading.isVisible({ timeout: 15000 }),
-          page.locator('text=success, text=thank, text=submitted').isVisible({ timeout: 15000 })
-        ]);
-        
-        if (success) {
-          console.log('✅ Primer Get Advice enviado exitosamente');
+        if (submitted) {
+          console.log('✅ Primer Get Advice completado exitosamente');
         } else {
-          console.log('⚠️ No se detectó confirmación clara, pero continuando...');
+          console.log('⚠️ Hubo un problema al completar el formulario, pero continuando...');
         }
         
       } else {
@@ -106,6 +105,7 @@ test.describe('Posting Limits - Usuario Fresco (Verificación Manual)', () => {
     await test.step('🚫 Probar 2do Get Advice - debe requerir PAGO/UPGRADE', async () => {
       console.log('\n🎯 PROBANDO SEGUNDO GET ADVICE (DEBE ESTAR LIMITADO)');
       
+      // Para el segundo intento, SÍ navegamos para empezar limpio
       await page.goto('https://app-stg.epxworldwide.com/');
       await page.waitForLoadState('networkidle');
       
@@ -141,7 +141,7 @@ test.describe('Posting Limits - Usuario Fresco (Verificación Manual)', () => {
     });
   });
 
-  // El segundo test se mantiene igual, no es necesario cambiarlo.
+  // El segundo test se mantiene igual
   test('validar detección de mensajes de error específicos', async ({ page }) => {
     test.setTimeout(400_000);
     
