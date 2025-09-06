@@ -9,7 +9,11 @@
     "report": "playwright show-report",
     "debug:carl": "PWDEBUG=1 playwright test test/carl-flujo.spec.ts --project=Chromium --headed",
     "test:posting": "playwright test test/posting-limits.spec.ts --project=Chromium",
-    "test:posting:debug": "PWDEBUG=1 playwright test test/posting-limits.spec.ts --project=Chromium --headed"
+    "test:posting:debug": "PWDEBUG=1 playwright test test/posting-limits.spec.ts --project=Chromium --headed",
+    "test:fresh-user": "playwright test test/posting-limits-fresh-user-simple.spec.ts --project=Chromium --headed",
+    "test:fresh-user:debug": "PWDEBUG=1 playwright test test/posting-limits-fresh-user-simple.spec.ts --project=Chromium --headed"
+
+
   },
   "keywords": [],
   "author": "",
@@ -23,6 +27,9 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "imap": "^0.8.19",
+    "mailparser": "^3.7.1",
+    "@types/imap": "^0.8.40"
   }
 }
