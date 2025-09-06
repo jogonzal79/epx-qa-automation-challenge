@@ -27,7 +27,7 @@ jobs:
           npx playwright install-deps chromium
 
       - name: Run Playwright tests (excluding visual tests)
-        run: npx playwright test --ignore-files="**/visual-regression.spec.ts" --ignore-files="**/visual-comparison.spec.ts"
+        run: npx playwright test --grep-invert "visual-regression|visual-comparison"
         env:
           EPX_EMAIL: ${{ secrets.EPX_EMAIL }}
           EPX_PASS: ${{ secrets.EPX_PASS }}
