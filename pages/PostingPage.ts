@@ -30,7 +30,11 @@ export class PostingPage {
     this.descriptionEditor = page.getByRole('textbox', { name: 'rdw-editor' });
     this.submitButton = page.getByRole('button', { name: 'Submit' });
     this.continueButton = page.getByRole('button', { name: 'Continue' });
-    this.wayToGoHeading = page.locator('h1:has-text("Way to go"), h2:has-text("Way to go"), text=/way.*to.*go/i');
+
+    // ✅ SOLUCIÓN 1: Selector corregido con .or()
+    this.wayToGoHeading = page.locator('h1:has-text("Way to go")')
+      .or(page.locator('h2:has-text("Way to go")'))
+      .or(page.getByText(/way.*to.*go/i));
   }
 
   async goto(): Promise<void> {
@@ -61,17 +65,12 @@ export class PostingPage {
     try {
       console.log('🔍 Preparando para hacer clic en Get Advice...');
       
-      // NO cerrar modales aquí - ya deberían estar cerrados desde el test
-      // El test maneja los modales después del registro
-      
       console.log('🎯 Buscando botón Get Advice...');
       
-      // Verificar si el botón está visible
       const isVisible = await this.getAdviceButton.isVisible({ timeout: 5000 });
       
       if (!isVisible) {
         console.log('⚠️ Botón no visible, intentando hacer scroll...');
-        // Intentar hacer scroll para encontrar el botón
         await this.page.evaluate(() => window.scrollTo(0, 0));
         await this.page.waitForTimeout(1000);
       }
@@ -79,23 +78,19 @@ export class PostingPage {
       await this.getAdviceButton.waitFor({ state: 'visible', timeout: 10000 });
       console.log('✅ Botón Get Advice encontrado');
       
-      // Hacer clic
       await this.getAdviceButton.click();
       console.log('✅ Clic en Get Advice realizado');
       
-      // PASO 3: Analizar el resultado
       return await this.analyzeNavigationResult();
       
     } catch (error) {
       console.error('❌ Error al hacer clic en Get Advice:', error);
       
-      // Tomar screenshot para debugging
       await this.page.screenshot({
         path: `test-results/get-advice-error-${Date.now()}.png`,
         fullPage: true
       });
       
-      // Verificar si apareció un modal de límites
       const limitModal = await this.checkForLimitModal();
       if (limitModal.found) {
         return limitModal.result;
@@ -108,25 +103,37 @@ export class PostingPage {
       };
     }
   }
-
+  
+  // ✅ SOLUCIÓN 2: Lógica de análisis mejorada
   private async analyzeNavigationResult(): Promise<PostingResult> {
     console.log('🔄 Analizando resultado de la navegación...');
     
-    // Esperar un momento para que la página responda
-    await this.page.waitForTimeout(3000);
+    // Esperar un momento para que la página responda y la URL se estabilice
+    await this.page.waitForTimeout(4000);
     
     const currentUrl = this.page.url();
     console.log(`📍 URL después del clic: ${currentUrl}`);
+
+    // Condición 1: Límite alcanzado (página de pago, upgrade o modal)
+    const limitModal = await this.checkForLimitModal();
+    if (limitModal.found) {
+      return limitModal.result;
+    }
     
-    // Verificar si llegamos al formulario (éxito - gratuito)
-    if (currentUrl.includes('achieve') || currentUrl.includes('seek-advice')) {
-      console.log('✅ Navegación exitosa al formulario');
-      
-      // Verificar que el formulario esté visible
-      const formVisible = await this.accountingFinanceRadio.isVisible({ timeout: 5000 })
-        .catch(() => false);
-      
+    if (currentUrl.includes('?pay=advice') || currentUrl.includes('upgrade')) {
+      console.log('✅ Detectado límite por URL de pago/upgrade.');
+      return {
+        success: false,
+        type: 'payment_required', // Se asume pago, pero podría ser upgrade
+        message: 'Límite detectado a través de la URL.'
+      };
+    }
+
+    // Condición 2: Formulario gratuito (éxito)
+    if (currentUrl.includes('seek-advice') && !currentUrl.includes('?pay=')) {
+      const formVisible = await this.accountingFinanceRadio.isVisible({ timeout: 5000 }).catch(() => false);
       if (formVisible) {
+        console.log('✅ Navegación exitosa al formulario gratuito.');
         return {
           success: true,
           type: 'free',
@@ -135,18 +142,14 @@ export class PostingPage {
       }
     }
     
-    // Verificar si apareció un modal de límites
-    const limitModal = await this.checkForLimitModal();
-    if (limitModal.found) {
-      return limitModal.result;
-    }
-    
+    console.log('⚠️ No se pudo determinar el estado. Ni formulario gratuito ni modal/página de límite encontrados.');
     return {
       success: false,
       type: 'error',
-      message: 'Estado indeterminado después del clic'
+      message: 'Estado indeterminado después del clic en Get Advice'
     };
   }
+
 
   private async checkForLimitModal(): Promise<{ found: boolean; result: PostingResult }> {
     console.log('🔍 Verificando modales de límites...');
@@ -182,13 +185,10 @@ export class PostingPage {
     try {
       console.log('📝 Completando formulario Get Advice...');
       
-      // PASO 1: Seleccionar categoría
       await this.accountingFinanceRadio.waitFor({ state: 'visible', timeout: 10000 });
       await this.accountingFinanceRadio.check();
       console.log('✅ Categoría Accounting/Finance seleccionada');
       
-      // PASO 2: Llenar descripción
-      // Primero hacer clic en el área de texto si es necesario
       const textPrompt = this.page.getByText('Write 4 sentences describing');
       if (await textPrompt.isVisible({ timeout: 2000 })) {
         await textPrompt.click();
@@ -198,11 +198,9 @@ export class PostingPage {
       await this.descriptionEditor.fill(description);
       console.log('✅ Descripción completada');
       
-      // PASO 3: Enviar formulario
       await this.submitButton.click();
       console.log('🚀 Formulario enviado');
       
-      // PASO 4: Manejar modal de confirmación
       await this.handlePostSubmissionModal();
       
       return true;
@@ -217,7 +215,6 @@ export class PostingPage {
     try {
       console.log('⏳ Esperando modal de confirmación...');
       
-      // Esperar a que aparezca el botón Continue
       const continueVisible = await this.continueButton.isVisible({ timeout: 10000 });
       
       if (continueVisible) {
@@ -225,7 +222,6 @@ export class PostingPage {
         await this.continueButton.click();
         console.log('✅ Clic en Continue - Formulario completado exitosamente');
       } else {
-        // Buscar otros indicadores de éxito usando wayToGoHeading
         const successVisible = await this.wayToGoHeading.isVisible({ timeout: 5000 });
         
         if (successVisible) {
@@ -233,7 +229,6 @@ export class PostingPage {
           return;
         }
         
-        // Buscar otros indicadores de éxito
         const successIndicators = [
           this.page.locator('text=/success/i'),
           this.page.locator('text=/thank/i'),
@@ -254,7 +249,6 @@ export class PostingPage {
     }
   }
   
-  // Método alternativo para navegar directamente al formulario
   async navigateDirectlyToAdviceForm(): Promise<void> {
     console.log('📍 Navegando directamente al formulario Get Advice...');
     await this.page.goto('https://app-stg.epxworldwide.com/achieve/seek-advice', {
