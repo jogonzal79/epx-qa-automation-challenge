@@ -29,9 +29,6 @@ export class GuerrillaEmailService {
   private baseUrl = 'https://api.guerrillamail.com/ajax.php';
   private sessionData: { email: string; sid_token: string } | null = null;
 
-  /**
-   * Genera un email temporal único automáticamente
-   */
   async generateTemporaryEmail(): Promise<string> {
     try {
       const response = await fetch(`${this.baseUrl}?f=get_email_address`, {
@@ -61,9 +58,6 @@ export class GuerrillaEmailService {
     }
   }
 
-  /**
-   * Busca código de verificación en la bandeja temporal
-   */
   async getVerificationCode(expectedEmail: string, maxWaitTime: number = 120000): Promise<string> {
     if (!this.sessionData) {
       throw new Error('No hay sesión de email activa. Genera un email primero.');
@@ -77,7 +71,6 @@ export class GuerrillaEmailService {
       try {
         const messages = await this.getMessages();
         
-        // Buscar emails de EPX con códigos de verificación
         for (const message of messages) {
           if (this.isVerificationEmail(message)) {
             const mailContent = await this.getMessageContent(message.mail_id);
@@ -152,60 +145,47 @@ export class GuerrillaEmailService {
     const subject = message.mail_subject.toLowerCase();
     const excerpt = message.mail_excerpt.toLowerCase();
 
-    // Verificar que viene de EPX
-    const isFromEPX = from.includes('epx') || 
-                     from.includes('noreply') || 
-                     from.includes('support');
-
-    // Verificar que es email de verificación
-    const isVerificationEmail = subject.includes('verification') ||
-                               subject.includes('verify') ||
-                               subject.includes('code') ||
-                               subject.includes('confirm') ||
-                               excerpt.includes('verification') ||
-                               excerpt.includes('code');
+    const isFromEPX = from.includes('epx') || from.includes('noreply') || from.includes('support');
+    const isVerificationEmail = subject.includes('verification') || subject.includes('verify') || subject.includes('code') || subject.includes('confirm') || excerpt.includes('verification') || excerpt.includes('code');
 
     return isFromEPX && isVerificationEmail;
   }
-
+  
+  // =================================================================
+  // FUNCIÓN DE EXTRACCIÓN DE CÓDIGO CORREGIDA Y MEJORADA
+  // =================================================================
   private extractVerificationCode(emailBody: string): string | null {
-    // Limpiar HTML si existe
+    // Limpiar HTML y otros caracteres para quedarnos con texto plano
     const cleanText = emailBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
 
-    // Patrones comunes para códigos de verificación
+    // Patrones de búsqueda, ordenados del más específico al más general.
+    // Buscamos específicamente secuencias de 4 a 6 dígitos.
     const patterns = [
-      /verification code[:\s]*([A-Z0-9]{4,8})/i,
-      /your code[:\s]*([A-Z0-9]{4,8})/i,
-      /confirm your email[:\s]*([A-Z0-9]{4,8})/i,
-      /enter code[:\s]*([A-Z0-9]{4,8})/i,
-      /code[:\s]*([A-Z0-9]{4,8})/i,
-      /([A-Z0-9]{6})/g, // Códigos de 6 caracteres
-      /([0-9]{4,8})/g   // Códigos numéricos
+        /your verification code is[:\s]*(\d{4,6})/i, // "your verification code is 123456"
+        /code[:\s]*(\d{4,6})/i,                      // "code: 123456"
+        /\b(\d{4,6})\b/                               // Cualquier número de 4 a 6 dígitos aislado
     ];
 
     for (const pattern of patterns) {
-      const match = cleanText.match(pattern);
-      if (match && match[1]) {
-        const code = match[1].trim();
-        
-        // Validar que el código tenga formato típico
-        if (code.length >= 4 && code.length <= 8) {
-          return code;
+        const match = cleanText.match(pattern);
+        if (match && match[1]) {
+            const code = match[1];
+            // Verificamos que sea puramente numérico y tenga la longitud correcta
+            if (/^\d{4,6}$/.test(code)) {
+                return code;
+            }
         }
-      }
     }
 
-    console.warn('⚠️ No se pudo extraer código del email:', cleanText.slice(0, 200));
+    console.warn('⚠️ No se pudo extraer un código numérico del email:', cleanText.slice(0, 250));
     return null;
   }
+  // =================================================================
 
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  /**
-   * Limpiar sesión
-   */
   async cleanup(): Promise<void> {
     if (this.sessionData) {
       console.log(`🧹 Sesión de email temporal limpia: ${this.sessionData.email}`);
@@ -213,9 +193,6 @@ export class GuerrillaEmailService {
     }
   }
 
-  /**
-   * Obtener el email actual de la sesión
-   */
   getCurrentEmail(): string | null {
     return this.sessionData?.email || null;
   }

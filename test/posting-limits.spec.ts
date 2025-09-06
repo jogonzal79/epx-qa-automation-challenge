@@ -1,3 +1,4 @@
+// test/posting-limits.spec.ts
 import { test, expect } from '@playwright/test';
 import { PostingLimitsHelper } from '../helpers/PostingLimitsHelper.js';
 

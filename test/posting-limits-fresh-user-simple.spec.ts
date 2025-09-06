@@ -25,9 +25,6 @@ test.describe('Posting Limits - Usuario Fresco (Verificación Manual)', () => {
       const userHelper = new UserCreationHelper(page);
       
       console.log('\n🎯 INICIANDO CREACIÓN DE USUARIO FRESCO');
-      console.log('📧 Se usará verificación manual de email');
-      console.log('⚠️ Mantente atento para ingresar el código de verificación\n');
-      
       userData = await userHelper.createFreshUser();
       
       console.log(`\n✅ USUARIO CREADO EXITOSAMENTE`);
@@ -37,11 +34,9 @@ test.describe('Posting Limits - Usuario Fresco (Verificación Manual)', () => {
     });
     
     await test.step('🔐 Validar que el usuario está autenticado', async () => {
-      // Verificar URL y elementos de navegación
       const currentUrl = page.url();
       console.log(`📍 URL actual: ${currentUrl}`);
       
-      // Buscar indicadores de autenticación
       const authIndicators = [
         page.locator('a[href="/carl"]'),
         page.locator('[data-testid*="user"]'),
@@ -64,14 +59,12 @@ test.describe('Posting Limits - Usuario Fresco (Verificación Manual)', () => {
     await test.step('📝 Probar 1er Get Advice - debe ser GRATIS', async () => {
       console.log('\n🎯 PROBANDO PRIMER GET ADVICE (GRATIS)');
       
+      // ===== CAMBIO CLAVE: Navegamos a la página principal para empezar limpio =====
+      await page.goto('https://app-stg.epxworldwide.com/');
+      await page.waitForLoadState('networkidle');
+      // =======================================================================
+      
       const postingPage = new PostingPage(page);
-      
-      // Ir al home si no estamos ahí
-      if (!page.url().includes('/home') && !page.url().endsWith('/')) {
-        await page.goto('https://app-stg.epxworldwide.com/');
-        await page.waitForTimeout(3000);
-      }
-      
       const result = await postingPage.clickGetAdvice();
       
       console.log(`📊 Resultado del primer Get Advice: ${result.type}`);
@@ -80,7 +73,6 @@ test.describe('Posting Limits - Usuario Fresco (Verificación Manual)', () => {
       if (result.success && result.type === 'free') {
         console.log('🎉 ¡PRIMER GET ADVICE DISPONIBLE GRATUITAMENTE!');
         
-        // Completar el formulario para consumir el límite gratuito
         console.log('📝 Completando formulario para consumir límite gratuito...');
         
         await expect(postingPage.accountingFinanceRadio).toBeVisible({ timeout: 10000 });
@@ -94,7 +86,6 @@ test.describe('Posting Limits - Usuario Fresco (Verificación Manual)', () => {
         
         await postingPage.submitButton.click();
         
-        // Esperar confirmación
         const success = await Promise.race([
           postingPage.wayToGoHeading.isVisible({ timeout: 15000 }),
           page.locator('text=success, text=thank, text=submitted').isVisible({ timeout: 15000 })
@@ -108,16 +99,15 @@ test.describe('Posting Limits - Usuario Fresco (Verificación Manual)', () => {
         
       } else {
         console.log(`⚠️ Resultado inesperado: ${JSON.stringify(result)}`);
-        console.log('💭 Esto podría indicar que ya hay límites o restricciones');
+        throw new Error('El primer "Get Advice" para un usuario nuevo no fue gratuito.');
       }
     });
 
     await test.step('🚫 Probar 2do Get Advice - debe requerir PAGO/UPGRADE', async () => {
       console.log('\n🎯 PROBANDO SEGUNDO GET ADVICE (DEBE ESTAR LIMITADO)');
       
-      // Volver al home
       await page.goto('https://app-stg.epxworldwide.com/');
-      await page.waitForTimeout(3000);
+      await page.waitForLoadState('networkidle');
       
       const postingPage = new PostingPage(page);
       const result = await postingPage.clickGetAdvice();
@@ -125,14 +115,12 @@ test.describe('Posting Limits - Usuario Fresco (Verificación Manual)', () => {
       console.log(`📊 Resultado del segundo Get Advice: ${result.type}`);
       console.log(`❌ Bloqueado: ${!result.success}`);
       
-      // El segundo intento debe estar limitado
       expect(result.success).toBeFalsy();
       expect(['upgrade_required', 'payment_required', 'limit_reached']).toContain(result.type);
       
       console.log('🎉 ¡LÍMITES DE POSTING FUNCIONANDO CORRECTAMENTE!');
       console.log(`🔒 Tipo de restricción: ${result.type}`);
       
-      // Tomar screenshot del estado de límite
       await page.screenshot({ 
         path: `test-results/posting-limit-state-${userData.email.split('@')[0]}.png`,
         fullPage: true 
@@ -150,68 +138,22 @@ test.describe('Posting Limits - Usuario Fresco (Verificación Manual)', () => {
       
       expect(response.length).toBeGreaterThan(20);
       console.log(`✅ C.A.R.L. respondió correctamente: "${response.slice(0, 100)}..."`);
-      console.log('✅ C.A.R.L. funciona independientemente de los límites de posting');
-    });
-
-    await test.step('📊 Documentar resultados finales', async () => {
-      console.log('\n🎯 GENERANDO REPORTE FINAL');
-      
-      await page.screenshot({ 
-        path: `test-results/final-state-${userData.firstName}-${Date.now()}.png`,
-        fullPage: true 
-      });
-      
-      // Crear un resumen en archivo de texto
-      const reportContent = `
-REPORTE DE PRUEBA DE LÍMITES DE POSTING
-======================================
-
-Usuario Creado:
-- Email: ${userData.email}
-- Nombre: ${userData.firstName} ${userData.lastName}
-- Empresa: ${userData.company}
-- Fecha: ${new Date().toISOString()}
-
-Resultados de Validación:
-✅ 1er Get Advice: GRATIS (consumido)
-❌ 2do Get Advice: REQUIERE PAGO/UPGRADE
-✅ C.A.R.L.: Funcionando sin limitaciones
-
-Conclusión:
-🎯 El sistema de límites de posting funciona correctamente
-🔒 Los límites se aplican por usuario como se esperaba
-🤖 C.A.R.L. no se ve afectado por los límites de posting
-
-Estado Final: LÍMITES VALIDADOS EXITOSAMENTE
-`;
-
-      console.log(reportContent);
-      
-      // Guardar reporte
-      const fs = await import('fs/promises');
-      await fs.writeFile(
-        `test-results/posting-limits-report-${userData.firstName}.txt`, 
-        reportContent
-      );
-      
-      console.log('\n🎉 ¡PRUEBA DE LÍMITES COMPLETADA EXITOSAMENTE!');
     });
   });
 
+  // El segundo test se mantiene igual, no es necesario cambiarlo.
   test('validar detección de mensajes de error específicos', async ({ page }) => {
     test.setTimeout(400_000);
     
     await test.step('Crear usuario y agotar límites rápidamente', async () => {
       const userHelper = new UserCreationHelper(page);
       const userData = await userHelper.createFreshUser();
-      
       console.log(`📧 Usuario para prueba de mensajes: ${userData.email}`);
     });
     
     await test.step('Consumir límite gratuito rápidamente', async () => {
       const postingPage = new PostingPage(page);
       
-      // Primer Get Advice (gratis)
       await postingPage.goto();
       await postingPage.clickGetAdvice();
       
@@ -230,7 +172,6 @@ Estado Final: LÍMITES VALIDADOS EXITOSAMENTE
       const postingPage = new PostingPage(page);
       await postingPage.clickGetAdvice();
       
-      // Analizar elementos de la UI de límites
       const limitElements = {
         modal: page.locator('[role="dialog"]'),
         upgradeButton: page.locator('button:has-text("Upgrade")'),

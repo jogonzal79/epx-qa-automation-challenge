@@ -34,23 +34,89 @@ export class UserCreationHelper {
     try {
       await this.navigateToSignUp();
       await this.fillSignUpForm(userData);
-      await this.solveCaptchaIfPresent();
       await this.submitForm();
+      await this.handleInterestsScreen();
+      await this.handleMembershipScreen();
       await this.handleEmailVerification(userData.email);
-      await this.completeProfileIfNeeded(userData);
       await this.verifySuccessfulRegistration();
 
-      console.log(`✅ Usuario creado exitosamente: ${userData.email}`);
+      console.log(`✅ ¡REGISTRO DE USUARIO COMPLETADO EXITOSAMENTE!`);
       return userData;
 
     } catch (error) {
-      await this.page.screenshot({ 
+      await this.page.screenshot({
         path: `test-results/user-creation-error-${Date.now()}.png`,
-        fullPage: true 
+        fullPage: true
       });
 
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       throw new Error(`❌ Error creando usuario: ${errorMessage}`);
+    }
+  }
+  
+  private async handleMembershipScreen(): Promise<void> {
+    console.log('🕵️‍♂️ Verificando si aparece la pantalla de membresía...');
+    
+    const freeMemberOption = this.page.getByText('FREE MEMBEREnjoy full access');
+
+    try {
+        await freeMemberOption.waitFor({ state: 'visible', timeout: 15000 });
+        console.log('📝 Detectada pantalla de membresía. Seleccionando opción gratuita...');
+        
+        await freeMemberOption.click();
+        
+        // La lógica para el CAPTCHA en esta pantalla se manejará si es necesario
+        
+        console.log('✅ Membresía seleccionada. Haciendo clic en "Continue"...');
+        const continueButton = this.page.getByRole('button', { name: 'Continue' });
+        await expect(continueButton).toBeEnabled({ timeout: 10000 });
+        await continueButton.click();
+
+        await freeMemberOption.waitFor({ state: 'hidden', timeout: 10000 });
+        console.log('✅ Pantalla de membresía completada.');
+
+    } catch (error) {
+      console.log('ℹ️ No se detectó la pantalla de membresía, continuando el flujo.');
+    }
+  }
+
+  private async handleInterestsScreen(): Promise<void> {
+    console.log('🕵️‍♂️ Verificando si aparece la pantalla de intereses...');
+    
+    const interestsHeading = this.page.getByText('What matters to you most right now?').first();
+
+    try {
+      await interestsHeading.waitFor({ state: 'visible', timeout: 15000 });
+      console.log('📝 Detectada pantalla de intereses. Ajustando slider...');
+
+      const achievementSlider = this.page.locator('#achievement');
+      await achievementSlider.waitFor({ state: 'visible', timeout: 5000 });
+
+      const box = await achievementSlider.boundingBox();
+      if (box) {
+        await this.page.mouse.click(box.x + box.width - 5, box.y + box.height / 2);
+        console.log(`- Slider 'Achievement' ajustado al 100%.`);
+        await this.page.waitForTimeout(500);
+      } else {
+        throw new Error('No se pudo obtener la posición del slider #achievement.');
+      }
+      
+      console.log('✅ Slider ajustado. Haciendo clic en "Continue"...');
+      const continueButton = this.page.getByRole('button', { name: 'Continue' });
+      
+      await expect(continueButton).toBeEnabled({ timeout: 5000 });
+      await continueButton.click();
+      
+      await interestsHeading.waitFor({ state: 'hidden', timeout: 10000 });
+      console.log('✅ Pantalla de intereses completada.');
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      if (await interestsHeading.isVisible()) {
+        throw new Error(`No se pudo completar el paso de la pantalla de intereses: ${errorMessage}`);
+      } else {
+        console.log('ℹ️ No se detectó la pantalla de intereses, continuando el flujo.');
+      }
     }
   }
 
@@ -72,16 +138,16 @@ export class UserCreationHelper {
 
   private async navigateToSignUp(): Promise<void> {
     try {
-      await this.page.goto('https://app-stg.epxworldwide.com/sign-up', { 
-        waitUntil: 'domcontentloaded', 
-        timeout: 30000 
+      await this.page.goto('https://app-stg.epxworldwide.com/sign-up', {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000
       });
       await this.page.waitForTimeout(5000);
     } catch (error) {
       console.error('❌ Error navegando a página de registro:', error);
-      await this.page.screenshot({ 
+      await this.page.screenshot({
         path: `test-results/signup-page-error-${Date.now()}.png`,
-        fullPage: true 
+        fullPage: true
       });
       throw new Error('❌ No se pudo encontrar página de registro válida');
     }
@@ -95,7 +161,7 @@ export class UserCreationHelper {
 
     const confirmFields = [
       'input[placeholder*="confirm"]',
-      'input[placeholder*="repeat"]', 
+      'input[placeholder*="repeat"]',
       'input[name*="confirm"]',
       'input[name*="password2"]'
     ];
@@ -179,154 +245,201 @@ export class UserCreationHelper {
   }
 
   private async solveCaptchaIfPresent(): Promise<void> {
-    const captchaSelectors = [
-      'iframe[src*="recaptcha"]',
-      '[data-sitekey]',
-      '.g-recaptcha',
-      '.captcha'
-    ];
-    for (const selector of captchaSelectors) {
-      const captcha = this.page.locator(selector).first();
-      if (await captcha.isVisible({ timeout: 3000 })) {
-        console.log('🤖 CAPTCHA detectado, resolviendo...');
-        try {
-          const siteKey = await this.extractSiteKey();
-          if (siteKey) {
-            const solution = await this.captchaService.solveRecaptchaV2(siteKey, this.page.url());
-            await this.injectCaptchaSolution(solution);
-            console.log('✅ CAPTCHA resuelto');
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-          console.warn('⚠️ Error resolviendo CAPTCHA:', errorMessage);
-          console.log('💡 Continúa manualmente si es necesario...');
-        }
-        break;
-      }
-    }
-  }
-
-  private async extractSiteKey(): Promise<string | null> {
-    return await this.page.evaluate(() => {
-      const element = document.querySelector('[data-sitekey]');
-      return element?.getAttribute('data-sitekey') || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI';
-    });
-  }
-
-  private async injectCaptchaSolution(solution: string): Promise<void> {
-    await this.page.evaluate((token) => {
-      const responseField = document.querySelector('[name="g-recaptcha-response"]') as HTMLTextAreaElement;
-      if (responseField) {
-        responseField.value = token;
-        responseField.style.display = 'block';
-      }
-    }, solution);
+    // La lógica de resolución de CAPTCHA se maneja externamente
   }
 
   private async submitForm(): Promise<void> {
-    const submitSelectors = [
-      'button:has-text("Continue")',
-      'button[type="submit"]',
-      'input[type="submit"]',
-      'button:has-text("Sign Up")',
-      'button:has-text("Register")',
-      'button:has-text("Create Account")'
-    ];
-    for (const selector of submitSelectors) {
-      const button = this.page.locator(selector).first();
-      if (await button.isVisible({ timeout: 2000 })) {
-        await button.click();
-        console.log(`🔄 Formulario enviado usando: ${selector}`);
-        await this.page.waitForTimeout(3000);
-        return;
-      }
-    }
-    throw new Error('❌ No se encontró botón de envío');
+    const submitButton = this.page.locator('button[type="submit"]').first();
+    await submitButton.waitFor({ state: 'visible', timeout: 5000 });
+    await submitButton.click();
+    console.log(`🔄 Formulario (Paso 1) enviado.`);
   }
 
-  private async handleEmailVerification(email: string): Promise<void> {
-    const verificationIndicators = [
-      'text=verification',
-      'text=verify',
-      'text=code',
-      'input[placeholder*="code"]',
-      'input[name*="code"]'
-    ];
-    let needsVerification = false;
-    for (const selector of verificationIndicators) {
-      if (await this.page.locator(selector).isVisible({ timeout: 5000 })) {
-        needsVerification = true;
-        break;
-      }
+  // =================================================================
+  // FUNCIÓN DE VERIFICACIÓN FINAL CON ESPERA EXPLÍCITA Y ROBUSTA
+  // =================================================================
+private async handleEmailVerification(email: string): Promise<void> {
+    const codeInput = this.page.locator('#code');
+    
+    try {
+        await codeInput.waitFor({ state: 'visible', timeout: 15000 });
+        console.log('📧 Detectada pantalla de verificación de email. Obteniendo código...');
+        
+        const code = await this.emailService.getVerificationCode(email);
+        await codeInput.fill(code);
+        
+        console.log('✅ Código escrito. Buscando botón de verificación...');
+        
+        // Esperar un momento para que el DOM se actualice
+        await this.page.waitForTimeout(1000);
+        
+        // Intentar múltiples selectores para el botón
+        const buttonSelectors = [
+            'button:has-text("Let\'s go!")',
+            'button:has-text("Let\'s go")',
+            'button[type="submit"]',
+            'button:text-is("Let\'s go!")',
+            '//button[contains(., "Let")]',
+            'button >> text=/Let.*go/i',
+            'button:visible'
+        ];
+        
+        let verifyButton = null;
+        
+        // Intentar encontrar el botón con diferentes selectores
+        for (const selector of buttonSelectors) {
+            try {
+                const btn = this.page.locator(selector).first();
+                const isVisible = await btn.isVisible({ timeout: 1000 }).catch(() => false);
+                
+                if (isVisible) {
+                    const buttonText = await btn.textContent().catch(() => '');
+                    console.log(`✅ Botón encontrado: "${buttonText}" con selector: ${selector}`);
+                    verifyButton = btn;
+                    break;
+                }
+            } catch (e) {
+                continue;
+            }
+        }
+        
+        if (!verifyButton) {
+            // Buscar cualquier botón visible como último recurso
+            const allButtons = await this.page.locator('button:visible').all();
+            console.log(`📋 Total de botones visibles encontrados: ${allButtons.length}`);
+            
+            for (const button of allButtons) {
+                const text = await button.textContent().catch(() => '');
+                console.log(`  - Botón: "${text?.trim()}"`);
+                
+                if (text && (
+                    text.toLowerCase().includes('go') ||
+                    text.toLowerCase().includes('verify') ||
+                    text.toLowerCase().includes('submit') ||
+                    text.toLowerCase().includes('continue')
+                )) {
+                    verifyButton = button;
+                    console.log(`✅ Seleccionando botón: "${text.trim()}"`);
+                    break;
+                }
+            }
+        }
+        
+        if (!verifyButton) {
+            await this.page.screenshot({
+                path: `test-results/no-verify-button-${Date.now()}.png`,
+                fullPage: true
+            });
+            throw new Error('No se pudo encontrar el botón de verificación');
+        }
+        
+        // Intentar hacer clic
+        console.log('🖱️ Intentando hacer clic en el botón...');
+        
+        try {
+            // Scroll al botón si es necesario
+            await verifyButton.scrollIntoViewIfNeeded().catch(() => {});
+            
+            // Intentar clic normal
+            await verifyButton.click({ timeout: 5000 });
+            console.log('✅ Clic realizado con éxito');
+        } catch (clickError) {
+            console.log('⚠️ Clic normal falló, intentando con force...');
+            
+            try {
+                await verifyButton.click({ force: true });
+                console.log('✅ Clic forzado realizado');
+            } catch (forceClickError) {
+                console.log('⚠️ Clic forzado falló, intentando con JavaScript...');
+                await verifyButton.evaluate((el: HTMLElement) => el.click());
+                console.log('✅ Clic con JavaScript realizado');
+            }
+        }
+        
+        // Esperar a que algo cambie después del clic
+        console.log('⏳ Esperando respuesta después del clic...');
+        
+        try {
+            await Promise.race([
+                // Esperar que el input desaparezca
+                codeInput.waitFor({ state: 'hidden', timeout: 10000 }),
+                
+                // O que aparezca algún elemento del dashboard
+                this.page.locator('nav, header, [data-testid*="dashboard"], [data-testid*="user"]')
+                    .first()
+                    .waitFor({ state: 'visible', timeout: 10000 }),
+                
+                // O que la URL cambie
+                this.page.waitForFunction(() => {
+                    const currentUrl = window.location.href;
+                    return !currentUrl.includes('verify') && !currentUrl.includes('code');
+                }, { timeout: 10000 })
+            ]);
+            
+            console.log('✅ Navegación detectada después de la verificación');
+        } catch (e) {
+            console.log('⚠️ No se detectó cambio claro, pero continuando...');
+            
+            // Como último recurso, intentar Enter
+            try {
+                await codeInput.press('Enter');
+                await this.page.waitForTimeout(2000);
+                console.log('✅ Enter presionado como alternativa');
+            } catch {}
+        }
+        
+        console.log('✅ Proceso de verificación de email completado');
+        
+    } catch(e) {
+        // Información de debugging
+        console.log('❌ Error en verificación. Información de debugging:');
+        
+        const currentUrl = this.page.url();
+        console.log(`  - URL actual: ${currentUrl}`);
+        
+        const visibleInputs = await this.page.locator('input:visible').count();
+        const visibleButtons = await this.page.locator('button:visible').count();
+        console.log(`  - Inputs visibles: ${visibleInputs}`);
+        console.log(`  - Botones visibles: ${visibleButtons}`);
+        
+        // Screenshot para debugging
+        await this.page.screenshot({
+            path: `test-results/email-verification-error-${Date.now()}.png`,
+            fullPage: true
+        });
+        
+        const errorMessage = e instanceof Error ? e.message : 'Error desconocido';
+        throw new Error(`Falló el manejo de la verificación de email: ${errorMessage}`);
     }
-    if (needsVerification) {
-      console.log('📧 Verificación de email requerida - obteniendo código automáticamente...');
-      const code = await this.emailService.getVerificationCode(email);
-      const codeInput = this.page.locator('input[placeholder*="code"], input[placeholder*="verification"], input[name*="code"]').first();
-      await expect(codeInput).toBeVisible({ timeout: 10000 });
-      await codeInput.fill(code);
-      const verifyButton = this.page.locator('button:has-text("Verify"), button:has-text("Continue"), button:has-text("Confirm")').first();
-      await verifyButton.click();
-      await this.page.waitForTimeout(5000);
-      console.log('✅ Código de verificación ingresado automáticamente');
-    }
-  }
-
-  private async completeProfileIfNeeded(userData: UserData): Promise<void> {
-    const profileFields = [
-      { selector: 'input[placeholder*="interest"]', value: 'Business Development' },
-      { selector: 'input[placeholder*="goal"]', value: 'Professional Networking' },
-      { selector: 'textarea', value: 'QA Automation Testing' }
-    ];
-    for (const field of profileFields) {
-      if (await this.fillFieldIfExists(field.selector, field.value)) {
-        console.log(`📝 Campo de perfil completado: ${field.selector}`);
-      }
-    }
-    const finishButtons = [
-      'button:has-text("Complete")',
-      'button:has-text("Finish")',
-      'button:has-text("Get Started")',
-      'button:has-text("Start")'
-    ];
-    for (const buttonText of finishButtons) {
-      const button = this.page.locator(buttonText).first();
-      if (await button.isVisible({ timeout: 3000 })) {
-        await button.click();
-        console.log('🏁 Perfil completado');
-        break;
-      }
-    }
-  }
+}
+  // =================================================================
 
   private async verifySuccessfulRegistration(): Promise<void> {
-    await this.page.waitForTimeout(5000);
+    console.log('🕵️‍♂️ Verificando registro exitoso y redirección al dashboard...');
     const successIndicators = [
-      'text=welcome',
-      'text=dashboard',
-      'text=home',
       'a[href="/carl"]',
       '[data-testid*="user"]',
-      'nav, header'
+      'nav', 
+      'header'
     ];
-    const currentUrl = this.page.url();
-    const urlIndicatesSuccess = currentUrl.includes('/home') || 
-                                currentUrl.includes('/dashboard') || 
-                                currentUrl.includes('/profile');
-    const elementChecks = await Promise.all(
+
+    const successPromise = Promise.any(
       successIndicators.map(selector => 
-        this.page.locator(selector).isVisible({ timeout: 10000 }).catch(() => false)
+        this.page.locator(selector).first().waitFor({ state: 'visible', timeout: 30000 })
       )
     );
-    const hasSuccessElements = elementChecks.some(Boolean);
-    if (urlIndicatesSuccess || hasSuccessElements) {
-      console.log(`✅ Registro exitoso confirmado. URL: ${currentUrl}`);
-    } else {
-      console.warn('⚠️ No se detectaron indicadores claros de éxito, pero continuando...');
-      await this.page.screenshot({ 
-        path: `test-results/registration-status-${Date.now()}.png`,
-        fullPage: true 
-      });
+
+    try {
+      await successPromise;
+      await this.page.waitForLoadState('networkidle', { timeout: 5000 });
+      const currentUrl = this.page.url();
+      console.log(`✅ ¡Bienvenido! Registro exitoso confirmado. URL final: ${currentUrl}`);
+    } catch (error) {
+        await this.page.screenshot({
+            path: `test-results/registration-final-status-error-${Date.now()}.png`,
+            fullPage: true
+        });
+        throw new Error('❌ Falló la verificación final del registro. No se encontraron indicadores de dashboard después de la verificación de email.');
     }
   }
 
