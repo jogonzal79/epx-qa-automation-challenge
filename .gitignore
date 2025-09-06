@@ -9,3 +9,11 @@ storageState.json
 *-actual.png
 *-diff.png
 debug-*.png
+test-*-*.png
+*-chromium-*.png
+*-Chromium-*.png
+*-webkit-*.png
+*-firefox-*.png
+*-chromium-*.png
+*-webkit-*.png
+*-firefox-*.png
