@@ -31,6 +31,7 @@ jobs:
         env:
           EPX_EMAIL: ${{ secrets.EPX_EMAIL }}
           EPX_PASS: ${{ secrets.EPX_PASS }}
+          CAPTCHA_API_KEY: ${{ secrets.CAPTCHA_API_KEY }}
         
       - name: Upload test results
         if: always()
