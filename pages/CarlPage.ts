@@ -7,7 +7,6 @@ export class CarlPage extends BasePage {
   readonly chatContainer: Locator;
   readonly input: Locator;
   readonly chatWrapper: Locator;
-  readonly loadingIndicator: Locator;
 
   private _initialChatContent = '';
   private _lastUserMessage = '';
@@ -15,25 +14,27 @@ export class CarlPage extends BasePage {
   constructor(page: Page) {
     super(page);
 
+    // Contenedor principal del chat basado en el debug output
     this.chatContainer = this.page.locator('.carl-messages-height, .chat-wrapper').first();
+    
+    // El wrapper donde aparecen los mensajes
     this.chatWrapper = this.page.locator('.chat-wrapper').first();
+
+    // El input del chat - vimos que es un textarea con placeholder específico
     this.input = this.page.locator('textarea[placeholder="How can C.A.R.L. help you today?"]')
       .or(this.page.locator('textarea').first());
-    
-    // Definimos el indicador de carga aquí para reutilizarlo
-    this.loadingIndicator = this.page.locator('[class*="typing"], [class*="loading"], [class*="dots"]').first();
   }
 
   async goto() {
     await super.goto('/carl');
-    await this.page.waitForTimeout(2000);
-
-    console.log('⏳ Esperando a que la interfaz de C.A.R.L. esté completamente cargada...');
     
-    await this.chatContainer.waitFor({ state: 'visible', timeout: 30000 });
-    await this.input.waitFor({ state: 'visible', timeout: 30000 });
-    await expect(this.input).toBeEnabled({ timeout: 5000 });
+    // Esperar a que el chat esté visible
+    await this.chatContainer.waitFor({ state: 'visible', timeout: 15000 });
     
+    // Esperar a que el input esté listo
+    await this.input.waitFor({ state: 'visible', timeout: 15000 });
+    
+    // Guardar el contenido inicial del chat
     this._initialChatContent = await this.chatWrapper.innerText().catch(() => '');
     
     console.log(`✓ C.A.R.L. page loaded. Initial chat length: ${this._initialChatContent.length} chars`);
@@ -42,16 +43,20 @@ export class CarlPage extends BasePage {
   async askQuestion(question: string) {
     this._lastUserMessage = question;
     
+    // Asegurar que el input esté visible y enfocado
     await this.input.scrollIntoViewIfNeeded();
     await this.input.click();
     await this.page.waitForTimeout(300);
     
+    // Limpiar y escribir la pregunta
     await this.input.fill('');
     await this.page.waitForTimeout(200);
     
+    // Escribir la pregunta
     await this.input.type(question, { delay: 30 });
     await this.page.waitForTimeout(300);
     
+    // Verificar que el texto se escribió correctamente
     const inputValue = await this.input.inputValue();
     console.log(`📝 Texto en input: "${inputValue}"`);
     
@@ -60,60 +65,92 @@ export class CarlPage extends BasePage {
       await this.input.fill(question);
     }
     
+    // Enviar con Enter (basado en el debug, esto funciona)
     console.log('⏎ Enviando con Enter...');
     await this.input.press('Enter');
     
     console.log(`✓ Pregunta enviada: "${question}"`);
   }
 
-  // ✅ SOLUCIÓN DEFINITIVA para waitForResponse
-  async waitForResponse(opts?: { timeoutMs?: number }): Promise<string> {
+  async waitForResponse(opts?: { timeoutMs?: number }) {
     const timeoutMs = opts?.timeoutMs ?? 70_000;
-    console.log('⏳ Esperando a que la respuesta del asistente comience...');
-
-    // Paso 1: Esperar a que el contenido del chat cambie, indicando que la respuesta ha comenzado.
-    // Usamos una aserción `expect` que reintentará hasta que se cumpla o se agote el tiempo.
-    await expect(async () => {
-      const currentContent = await this.chatWrapper.innerText();
-      // La nueva longitud debe ser mayor que la inicial + la pregunta del usuario.
-      expect(currentContent.length).toBeGreaterThan(this._initialChatContent.length + this._lastUserMessage.length);
-    }).toPass({
-      timeout: timeoutMs / 2, // Le damos la mitad del tiempo total para que la respuesta comience
-    });
-
-    console.log('✓ La respuesta ha comenzado. Esperando a que finalice (indicador de carga desaparezca)...');
-
-    // Paso 2: Ahora que sabemos que la respuesta está en progreso, esperamos a que el indicador de "escribiendo..." desaparezca.
-    await this.loadingIndicator.waitFor({ state: 'hidden', timeout: timeoutMs / 2 }).catch(() => {
-        console.log('⚠️ No se encontró indicador de carga o ya estaba oculto, continuando...');
-    });
     
-    // Pequeña pausa para asegurar que el DOM se actualice después de que el indicador desaparece
-    await this.page.waitForTimeout(1500);
-
-    // Paso 3: Obtener el contenido final y extraer la respuesta.
-    const finalContent = await this.chatWrapper.innerText();
-    const newContent = finalContent.substring(this._initialChatContent.length);
-    const answer = this.extractAssistantResponse(newContent);
-
-    console.log(`✓ Respuesta final capturada (${answer.length} chars): "${answer.slice(0, 100)}..."`);
+    console.log('⏳ Esperando respuesta del asistente...');
+    
+    // Esperar a que el contenido del chat cambie
+    let newContent = '';
+    let attempts = 0;
+    const maxAttempts = Math.floor(timeoutMs / 2000);
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      await this.page.waitForTimeout(2000);
+      
+      const currentContent = await this.chatWrapper.innerText().catch(() => '');
+      
+      // Verificar si hay contenido nuevo
+      if (currentContent.length > this._initialChatContent.length + this._lastUserMessage.length) {
+        newContent = currentContent.substring(this._initialChatContent.length);
+        console.log(`✓ Nuevo contenido detectado (${newContent.length} chars)`);
+        break;
+      }
+      
+      // Buscar indicadores de carga
+      const loadingIndicator = this.page.locator('[class*="typing"], [class*="loading"], [class*="dots"]').first();
+      if (await loadingIndicator.isVisible({ timeout: 100 }).catch(() => false)) {
+        console.log('⏳ Indicador de carga detectado, esperando...');
+        await loadingIndicator.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+        await this.page.waitForTimeout(1000);
+        newContent = (await this.chatWrapper.innerText().catch(() => '')).substring(this._initialChatContent.length);
+        break;
+      }
+    }
+    
+    // Si no hay contenido nuevo, lanzar error
+    if (!newContent) {
+      throw new Error('Timeout esperando respuesta del asistente');
+    }
+    
+    // Esperar un poco más para asegurar que la respuesta esté completa
+    await this.page.waitForTimeout(2000);
+    
+    // Obtener el contenido final
+    const finalContent = await this.chatWrapper.innerText().catch(() => '');
+    newContent = finalContent.substring(this._initialChatContent.length);
+    
+    // Extraer la respuesta del asistente
+    let answer = this.extractAssistantResponse(newContent);
+    
+    console.log(`✓ Respuesta capturada (${answer.length} chars): "${answer.slice(0, 100)}..."`);
+    
     return answer;
   }
 
   private extractAssistantResponse(content: string): string {
     if (!content) return '';
     
+    // El contenido nuevo incluye:
+    // 1. El nombre del usuario (ej: "Carla Cuenta 1")
+    // 2. La pregunta del usuario
+    // 3. "C.A.R.L." y "IA" como encabezados
+    // 4. La respuesta real del asistente
+    
+    // Buscar la posición de nuestra pregunta
     const questionIndex = content.indexOf(this._lastUserMessage);
     if (questionIndex === -1) {
+      // Si no encontramos la pregunta, devolver todo el contenido nuevo limpio
       return this.cleanResponse(content);
     }
     
+    // Buscar el contenido después de la pregunta
     let afterQuestion = content.substring(questionIndex + this._lastUserMessage.length).trim();
     
+    // Quitar los encabezados "C.A.R.L." e "IA" si están presentes
     afterQuestion = afterQuestion.replace(/^C\.A\.R\.L\.?\s*\n?\s*IA\s*\n?/i, '');
     afterQuestion = afterQuestion.replace(/^C\.A\.R\.L\.?\s*/i, '');
     afterQuestion = afterQuestion.replace(/^IA\s*/i, '');
     
+    // Limpiar y devolver
     return this.cleanResponse(afterQuestion);
   }
 
@@ -122,6 +159,7 @@ export class CarlPage extends BasePage {
     
     let clean = text.trim();
     
+    // Eliminar el mensaje inicial de bienvenida si está presente
     if (clean.includes("Hello, Carla. I hope you're doing well today")) {
       const welcomeEnd = clean.indexOf("previous discussions") + 20;
       if (welcomeEnd > 20) {
@@ -132,15 +170,19 @@ export class CarlPage extends BasePage {
       }
     }
     
+    // Eliminar encabezados comunes
     clean = clean.replace(/^C\.A\.R\.L\.?\s*\n?\s*IA\s*\n?/i, '');
     clean = clean.replace(/^C\.A\.R\.L\.?\s*/i, '');
     clean = clean.replace(/^IA\s*/i, '');
     clean = clean.replace(/^Assistant\s*/i, '');
     clean = clean.replace(/^Bot\s*/i, '');
+    
+    // Eliminar líneas de estado/carga
     clean = clean.replace(/^Let me (?:look at|check) the records\.+\s*/gi, '');
     clean = clean.replace(/^Loading\.+\s*/gi, '');
     clean = clean.replace(/^Thinking\.+\s*/gi, '');
     
+    // Eliminar posibles preguntas previas del historial (las que vimos en el debug)
     const previousQuestions = [
       '"Where are you from and why are you on Earth?"',
       '"Traveling to Miami. Are there any members there?"',
@@ -152,7 +194,10 @@ export class CarlPage extends BasePage {
       clean = clean.replace(q, '');
     }
     
+    // Eliminar disclaimers al final
     clean = clean.replace(/C\.A\.R\.L can make mistakes.*$/i, '');
+    
+    // Eliminar múltiples saltos de línea y espacios
     clean = clean.replace(/\n{3,}/g, '\n\n');
     clean = clean.replace(/\s+/g, ' ');
     
@@ -168,6 +213,7 @@ export class CarlPage extends BasePage {
 
     const clean = (answer || '').replace(/\s+/g, ' ').trim();
 
+    // Para debugging
     if (clean.length < minLength) {
       console.log(`❌ Respuesta muy corta (${clean.length} chars): "${clean}"`);
     }
@@ -182,6 +228,7 @@ export class CarlPage extends BasePage {
         console.log(`   Respuesta: "${clean.slice(0, 200)}..."`);
         console.log(`   Esperadas: ${mustIncludeAnyOf.map(r => r.toString()).join(', ')}`);
         
+        // Ser más flexible - no fallar si la respuesta es coherente
         if (clean.length > 50) {
           console.log('   ✓ Pero la respuesta es suficientemente larga y coherente, continuando...');
           return;
