@@ -138,8 +138,8 @@ npx playwright install chromium
 Crear archivo `.env` en la raíz del proyecto:
 
 ```env
-EPX_EMAIL=cmendoza+qa1@shokworks.io
-EPX_PASS=Cmendoza1.
+EPX_EMAIL=correo_registrado
+EPX_PASS=password
 CAPTCHA_API_KEY=tu_clave_2captcha  # Opcional, para automatización completa
 ```
 
