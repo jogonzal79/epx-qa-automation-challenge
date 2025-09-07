@@ -48,24 +48,31 @@ El proyecto utiliza **Playwright** como framework principal con TypeScript, impl
 - Manejo de verificación de email con servicio temporal
 - Detección inteligente de diferentes tipos de límites (upgrade, pago, tiempo)
 
-### 3. Comparación Visual (Visual Regression)
+### 3. Documentación Visual (Visual Testing)
 
 **Archivos principales:**
-- `test/visual-regression.spec.ts` - Suite de pruebas visuales
+- `test/visual-regression.spec.ts` - Suite de documentación visual
 - `helpers/VisualTestHelper.ts` - Utilidades para capturas
 
 **Validaciones implementadas:**
-- Screenshots comparativos de componentes clave
+- Generación automatizada de documentación visual de estado actual
+- Capturas sistemáticas de componentes clave para análisis
 - Validación responsive en múltiples viewports
-- Captura de estados de error y modales
-- Comparación de interfaces de formularios
-- Baseline de elementos UI principales
+- Documentación organizada para comparación contra diseños de referencia
+- Framework preparado para análisis vs Figma cuando esté disponible
 
 **Enfoque técnico:**
-- Estabilización de animaciones para screenshots consistentes
-- Tolerancia configurable de diferencias de píxeles
-- Captura modular por componentes
-- Documentación visual de la interfaz actual
+- Estabilización de animaciones para capturas consistentes
+- Captura automatizada multi-viewport (desktop, tablet, mobile)
+- Aislamiento de componentes individuales
+- Sistema de documentación que acepta la naturaleza dinámica de EPX
+- Generación de evidencias estructuradas para análisis manual
+
+**Características destacadas:**
+- Adaptación a contenido social dinámico (feeds, notificaciones, timestamps)
+- Enfoque de documentación vs comparaciones pixel-perfect
+- Framework escalable para futuras comparaciones automatizadas
+- Evidencias organizadas para análisis de regresiones visuales
 
 ## Arquitectura del Proyecto
 
