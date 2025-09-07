@@ -176,7 +176,7 @@ npm run report
 - Integración con servicios externos (email, captcha)
 - Pruebas que requieren estado persistente
 
-*Para análisis detallado de enfoques alternativos (Low-Code/No-Code), consultar la [Wiki del proyecto](../../wiki).*
+*Para análisis detallado de enfoques alternativos (Low-Code/No-Code), consultar la [Wiki del proyecto](../../wiki/DocumentoTecnicoAutomatizacionQAEPX).*
 
 ## Características Técnicas Destacadas
 
