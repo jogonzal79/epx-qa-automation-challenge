@@ -11,7 +11,10 @@
     "test:posting": "playwright test test/posting-limits.spec.ts --project=Chromium",
     "test:posting:debug": "PWDEBUG=1 playwright test test/posting-limits.spec.ts --project=Chromium --headed",
     "test:fresh-user": "playwright test test/posting-limits-fresh-user-simple.spec.ts --project=Chromium --headed",
-    "test:fresh-user:debug": "PWDEBUG=1 playwright test test/posting-limits-fresh-user-simple.spec.ts --project=Chromium --headed"
+    "test:fresh-user:debug": "PWDEBUG=1 playwright test test/posting-limits-fresh-user-simple.spec.ts --project=Chromium --headed",
+    "test:visual": "playwright test test/visual-comparison.spec.ts --project=Chromium --workers=1",
+    "test:visual:debug": "playwright test test/visual-comparison.spec.ts --project=Chromium --workers=1 --debug",
+    "test:visual:clean": "rm -f storageState.fresh-user.json && npm run test:visual"
 
 
   },
